@@ -34,4 +34,4 @@ Thumbs.db
 apps/dashboard/dist/
 
 # Claude session artifacts
-.claude/autoharness/
+**/.claude/autoharness/
