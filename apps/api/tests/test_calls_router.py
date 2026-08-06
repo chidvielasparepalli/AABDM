@@ -8,14 +8,14 @@ def test_start_call_requires_client(client):
 
 def test_start_call_runs_in_background(client, sample_client):
     # patch background task target so no replay thread starts
-    from app.routers import calls as calls_router
+    from app.services import CallService
 
-    with patch.object(calls_router, "_replay_and_save"):
+    with patch.object(CallService, "replay_and_save"):
         r = client.post(f"/clients/{sample_client['id']}/calls")
         assert r.status_code == 201
         body = r.json()
         assert body["status"] == "running"
-        calls_router._replay_and_save.assert_called_once()
+        CallService.replay_and_save.assert_called_once()
 
 
 def test_list_calls_empty(client, sample_client):
@@ -29,9 +29,9 @@ def test_get_call_404(client, sample_client):
 
 
 def test_duplicate_running_call_conflict(client, sample_client):
-    from app.routers import calls as calls_router
+    from app.services import CallService
 
-    with patch.object(calls_router, "_replay_and_save"):
+    with patch.object(CallService, "replay_and_save"):
         first = client.post(f"/clients/{sample_client['id']}/calls")
         assert first.status_code == 201
         second = client.post(f"/clients/{sample_client['id']}/calls")

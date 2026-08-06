@@ -18,12 +18,12 @@ def test_generate_other_outcome_empty():
 
 
 def test_send_followup_mock(client, sample_client):
-    # create a followup directly via engine helper then send it
+    # create a followup directly via service then send it
     from app.db import SessionLocal
-    from app.routers.followups import create_followups
+    from app.services import FollowUpService
 
     with SessionLocal() as db:
-        create_followups(db, 1, sample_client["id"], 1, "Meeting / proposal requested", "SEO")
+        FollowUpService(db, 1).create_from_outcome(sample_client["id"], 1, "Meeting / proposal requested", "SEO")
 
     r = client.get(f"/clients/{sample_client['id']}/follow-ups")
     assert r.status_code == 200

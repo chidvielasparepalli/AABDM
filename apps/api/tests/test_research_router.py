@@ -17,13 +17,13 @@ def test_research_latest_404(client, sample_client):
 
 
 def test_research_start_runs_background(client):
-    from app.routers import research as research_router
+    from app.services import ResearchService
 
     c = client.post("/clients", json={"name": "Web Co", "website": "https://example.com"}).json()
-    with patch.object(research_router, "_run_and_save"):
+    with patch.object(ResearchService, "run_and_save"):
         r = client.post(f"/clients/{c['id']}/research")
         assert r.status_code == 201
-        research_router._run_and_save.assert_called_once()
+        ResearchService.run_and_save.assert_called_once()
 
 
 def test_research_ssrf_url_rejected_400(client):

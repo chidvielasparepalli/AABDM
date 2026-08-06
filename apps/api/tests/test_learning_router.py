@@ -15,7 +15,7 @@ def test_learning_stats_empty(client):
 def test_learning_stats_after_review(client, sample_client):
     from app.db import SessionLocal
     from app.models import Call, TranscriptLine
-    from app.routers.learning import review_and_store
+    from app.services import LearningService
 
     with SessionLocal() as db:
         call = Call(
@@ -37,7 +37,7 @@ def test_learning_stats_after_review(client, sample_client):
             )
         )
         db.commit()
-        review_and_store(db, 1, call.id)
+        LearningService(db, 1).review_and_store(call.id)
 
     r = client.get("/learning/stats")
     body = r.json()

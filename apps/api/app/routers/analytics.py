@@ -1,22 +1,13 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 
-from ..analytics import build_analytics
-from ..auth import CurrentUser
-from ..db import get_db
-from ..repositories import CallRepository, ClientRepository, MeetingRepository
-from ..tenancy import CurrentOrg
+from ..services import AnalyticsService
+from ..services.deps import service_dep
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 
 @router.get("")
 def get_analytics(
-    db: Session = Depends(get_db),
-    _: dict = CurrentUser,
-    org_id: int = CurrentOrg,
+    svc: AnalyticsService = Depends(service_dep(AnalyticsService)),
 ):
-    clients = ClientRepository(db, org_id).all()
-    calls = CallRepository(db, org_id).all()
-    meetings = MeetingRepository(db, org_id).all()
-    return build_analytics(clients, calls, meetings)
+    return svc.get()
