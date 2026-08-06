@@ -6,12 +6,13 @@ transcript when an API key exists (`ponytail`).
 """
 import re
 
+from .domain.enums import MemoryKey
+
 BUDGET_RE = re.compile(r"\$([\d,]+)")
 
 # (fact_key, trigger words) — AI lines we parse for facts
 INTEREST_TRIGGERS = ["interested in", "wants", "looking for", "needs help with", "focused on"]
 OBJECTION_TRIGGERS = ["budget", "too expensive", "not now", "other priorities", "no budget", "busy"]
-LANGUAGE_TRIGGERS = []  # inferred from transcript text below
 PREFERENCE_TRIGGERS = ["prefer", "prefers", "start smaller", "email it", "call me"]
 
 
@@ -35,7 +36,7 @@ def extract_memories(existing: set, client_lines: list[str], ai_lines: list[str]
 
     # budget: any $ figure mentioned
     for m in BUDGET_RE.finditer(all_lines):
-        new.append(("budget", f"mentioned ${int(m.group(1).replace(',', '')):,}"))
+        new.append((MemoryKey.BUDGET, f"mentioned ${int(m.group(1).replace(',', '')):,}"))
 
     # interests: client says what they want
     for line in client_lines:
@@ -44,24 +45,24 @@ def extract_memories(existing: set, client_lines: list[str], ai_lines: list[str]
             if trig in low:
                 after = low.split(trig, 1)[1].strip(" .,!?")
                 if after and len(after) < 80:
-                    new.append(("interest", f"wants {after}"))
+                    new.append((MemoryKey.INTEREST, f"wants {after}"))
 
     # objections: client pushes back
     for line in client_lines:
         low = line.lower()
         if any(t in low for t in OBJECTION_TRIGGERS):
-            new.append(("objection", low[:100]))
+            new.append((MemoryKey.OBJECTION, low[:100]))
 
     # preferences
     for line in client_lines:
         low = line.lower()
         for trig in PREFERENCE_TRIGGERS:
             if trig in low:
-                new.append(("preference", f"{trig} mentioned"))
+                new.append((MemoryKey.PREFERENCE, f"{trig} mentioned"))
 
     # language: ASCII/non-ASCII heuristic (demo: english vs not)
     non_ascii = sum(1 for ch in all_lines if ord(ch) > 127)
     if non_ascii / max(len(all_lines), 1) > 0.05:
-        new.append(("language", "non-english detected"))
+        new.append((MemoryKey.LANGUAGE, "non-english detected"))
 
     return _dedupe(existing, new)

@@ -9,6 +9,8 @@ AI detected (client) and the AI's confidence (ai). Real speech transport
 import asyncio
 from dataclasses import dataclass
 
+from .domain.enums import CallOutcome
+
 PACE_S = 1.4  # simulated seconds between lines
 
 
@@ -120,8 +122,8 @@ def build_script(client_name: str, bi: dict, negotiation: dict | None = None) ->
 def outcome_for(score: int, lines: list[ScriptLine]) -> str:
     last_client = next(line for line in reversed(lines) if line.role == "client")
     if score >= 70 and last_client.emotion in ("positive",):
-        return "Meeting / proposal requested"
-    return "Follow-up scheduled"
+        return CallOutcome.MEETING_REQUESTED
+    return CallOutcome.FOLLOW_UP_SCHEDULED
 
 
 async def replay_call(client_name: str, bi: dict, write, negotiation: dict | None = None) -> tuple[str, int, str]:

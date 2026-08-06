@@ -5,12 +5,13 @@ from sqlalchemy.orm import Session
 
 from ..auth import CurrentUser
 from ..db import get_db
+from ..domain.enums import CallOutcome, MeetingStatus
 from ..models import Client, Meeting
 from ..schemas import MeetingCreate, MeetingOut, MeetingStatusUpdate
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
 
-BOOKED_MEETING_OUTCOMES = {"Meeting / proposal requested"}
+BOOKED_MEETING_OUTCOMES = {CallOutcome.MEETING_REQUESTED}
 
 
 def _next_business_morning(now: datetime | None = None) -> datetime:
@@ -50,7 +51,7 @@ def list_meetings(
     query = db.query(Meeting)
     if upcoming_only:
         now = datetime.now(timezone.utc)
-        query = query.filter(Meeting.scheduled_at >= now, Meeting.status != "cancelled")
+        query = query.filter(Meeting.scheduled_at >= now, Meeting.status != MeetingStatus.CANCELLED)
     return query.order_by(Meeting.scheduled_at.asc()).offset(offset).limit(limit).all()
 
 

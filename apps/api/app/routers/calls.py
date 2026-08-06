@@ -7,6 +7,7 @@ from ..auth import CurrentUser
 from ..bi import ClientInfo, Research, build_bi
 from ..calls import STAGES, replay_call
 from ..db import get_db
+from ..domain.enums import CallStatus, ResearchStatus
 from ..models import Call, Client, NegotiationConfig, ResearchReport, TranscriptLine
 from ..schemas import CallDetail, CallOut
 from .calendar import auto_book_meeting
@@ -28,7 +29,7 @@ def _bi_for(db: Session, client_id: int) -> dict:
     """Latest completed research → BI report, or default when none."""
     report = (
         db.query(ResearchReport)
-        .filter(ResearchReport.client_id == client_id, ResearchReport.status == "done")
+        .filter(ResearchReport.client_id == client_id, ResearchReport.status == ResearchStatus.DONE)
         .order_by(ResearchReport.created_at.desc())
         .first()
     )
@@ -71,7 +72,7 @@ def _replay_and_save(call_id: int, client_name: str, bi: dict, negotiation: dict
         call = db.get(Call, call_id)
         if not call:
             return
-        call.status = "running"
+        call.status = CallStatus.RUNNING
         db.commit()
 
         async def write(line) -> None:
@@ -93,7 +94,7 @@ def _replay_and_save(call_id: int, client_name: str, bi: dict, negotiation: dict
             db.commit()
 
         outcome, duration_s, sentiment = asyncio.run(replay_call(client_name, bi, write, negotiation))
-        call.status = "done"
+        call.status = CallStatus.DONE
         call.outcome = outcome
         call.duration_s = duration_s
         call.sentiment = sentiment
@@ -117,13 +118,13 @@ def start_call(
 
     running = (
         db.query(Call)
-        .filter(Call.client_id == client_id, Call.status == "running")
+        .filter(Call.client_id == client_id, Call.status == CallStatus.RUNNING)
         .first()
     )
     if running:
         raise HTTPException(status_code=409, detail="A call is already in progress")
 
-    call = Call(client_id=client_id, status="running", stage=STAGES[0])
+    call = Call(client_id=client_id, status=CallStatus.RUNNING, stage=STAGES[0])
     db.add(call)
     db.commit()
     db.refresh(call)

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from ..auth import CurrentUser
 from ..bi import ClientInfo, Research, build_bi
 from ..db import get_db
+from ..domain.enums import ResearchStatus
 from ..models import Client, ResearchReport
 
 router = APIRouter(prefix="/clients/{client_id}/bi", tags=["bi"])
@@ -21,7 +22,7 @@ def get_bi(client_id: int, db: Session = Depends(get_db), _: dict = CurrentUser)
         .order_by(ResearchReport.created_at.desc())
         .first()
     )
-    if not report or report.status != "done":
+    if not report or report.status != ResearchStatus.DONE:
         raise HTTPException(status_code=409, detail="No completed research yet")
 
     research = Research(

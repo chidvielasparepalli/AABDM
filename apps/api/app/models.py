@@ -13,6 +13,13 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
+from .domain.enums import (
+    CallStatus,
+    ClientStatus,
+    FollowUpChannel,
+    FollowUpStatus,
+    MeetingStatus,
+)
 
 
 def utcnow() -> datetime:
@@ -31,7 +38,7 @@ class Client(Base):
     industry: Mapped[str | None] = mapped_column(String(100))
     budget: Mapped[float | None] = mapped_column(Float)
     notes: Mapped[str | None] = mapped_column(Text)
-    status: Mapped[str] = mapped_column(String(50), default="Lead")
+    status: Mapped[str] = mapped_column(String(50), default=ClientStatus.LEAD.value)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     calls = relationship("Call", back_populates="client", cascade="all, delete-orphan")
@@ -54,7 +61,7 @@ class Call(Base):
     outcome: Mapped[str | None] = mapped_column(String(100))
     sentiment: Mapped[str | None] = mapped_column(String(50))
     duration_s: Mapped[int | None]
-    status: Mapped[str] = mapped_column(String(20), default="running")  # running | done
+    status: Mapped[str] = mapped_column(String(20), default=CallStatus.RUNNING.value)  # running | done
     stage: Mapped[str | None] = mapped_column(String(50))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -132,6 +139,7 @@ class Memory(Base):
     client = relationship("Client", back_populates="memories")
 
     __table_args__ = (
+        # mirror of domain.enums.MemoryKey values — update both on change
         CheckConstraint("key IN ('interest','objection','budget','language','preference')", name="ck_memories_key"),
     )
 
@@ -142,10 +150,10 @@ class FollowUp(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"))
     call_id: Mapped[int | None] = mapped_column(ForeignKey("calls.id"))
-    kind: Mapped[str] = mapped_column(String(50))  # thank_you | portfolio | proposal | follow_up
-    channel: Mapped[str] = mapped_column(String(20), default="email")  # email | whatsapp | sms
+    kind: Mapped[str] = mapped_column(String(50))  # thank_you | portfolio | follow_up
+    channel: Mapped[str] = mapped_column(String(20), default=FollowUpChannel.EMAIL.value)  # email | whatsapp | sms
     content: Mapped[str] = mapped_column(Text)
-    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending | sent | failed
+    status: Mapped[str] = mapped_column(String(20), default=FollowUpStatus.PENDING.value)  # pending | sent | failed
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     client = relationship("Client", back_populates="follow_ups")
@@ -163,7 +171,7 @@ class Meeting(Base):
     call_id: Mapped[int | None] = mapped_column(ForeignKey("calls.id"))
     title: Mapped[str] = mapped_column(String(200))
     scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    status: Mapped[str] = mapped_column(String(20), default="booked")  # booked | confirmed | done | cancelled
+    status: Mapped[str] = mapped_column(String(20), default=MeetingStatus.BOOKED.value)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     client = relationship("Client", back_populates="meetings")

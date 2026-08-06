@@ -1,7 +1,8 @@
 from datetime import datetime
-from enum import Enum
 
 from pydantic import BaseModel, ConfigDict
+
+from .domain.enums import ClientStatus, MeetingStatus
 
 
 class CallOut(BaseModel):
@@ -93,7 +94,7 @@ class ClientCreate(BaseModel):
     industry: str | None = None
     budget: float | None = None
     notes: str | None = None
-    status: str = "Lead"
+    status: ClientStatus = ClientStatus.LEAD
 
 
 class ClientUpdate(BaseModel):
@@ -169,13 +170,6 @@ class MeetingCreate(BaseModel):
     client_id: int
     title: str
     scheduled_at: datetime
-
-
-class MeetingStatus(str, Enum):
-    booked = "booked"
-    confirmed = "confirmed"
-    done = "done"
-    cancelled = "cancelled"
 
 
 class MeetingStatusUpdate(BaseModel):

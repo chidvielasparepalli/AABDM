@@ -6,6 +6,8 @@ LearningEntry; aggregated stats feed Module 10's AI learning charts.
 Upgrade path: LLM-based review/summary of the same transcript (`ponytail`).
 """
 
+from .domain.enums import CallOutcome
+
 # objection -> counter-strategy playbook (ordered best-fit)
 PLAYBOOK = [
     ("budget", "frame ROI / offer phased pilot or smaller scope"),
@@ -25,7 +27,7 @@ OBJECTION_KEYWORDS = {
 
 def _success_score(outcome: str | None, sentiment: str | None) -> int:
     score = 50
-    if outcome == "Meeting / proposal requested":
+    if outcome == CallOutcome.MEETING_REQUESTED:
         score += 30
     if sentiment == "positive":
         score += 10
@@ -53,7 +55,7 @@ def _strategy_for(objection: str | None) -> str:
 
 
 def _lesson(objection: str | None, score: int, outcome: str | None) -> str:
-    if outcome == "Meeting / proposal requested":
+    if outcome == CallOutcome.MEETING_REQUESTED:
         return f"High-signal close. Repeat the {_strategy_for(objection)} approach."
     if objection:
         return f"Objection '{objection}' recurred; counter with {_strategy_for(objection)} next call."

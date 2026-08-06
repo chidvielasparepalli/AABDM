@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import CurrentUser
 from ..db import get_db
+from ..domain.enums import MemorySource
 from ..memory import extract_memories
 from ..models import Client, Memory
 from ..schemas import MemoryOut
@@ -46,5 +47,5 @@ def extract_from_call(db: Session, call_id: int) -> None:
     ai_lines = [t.text for t in call.transcript if t.role == "ai"]
     facts = extract_memories(existing, client_lines, ai_lines)
     for key, value in facts:
-        db.add(Memory(client_id=call.client_id, key=key, value=value, source="call"))
+        db.add(Memory(client_id=call.client_id, key=key, value=value, source=MemorySource.CALL))
     db.commit()

@@ -4,10 +4,10 @@ Content templates keyed by outcome/kind. Transport is a no-op log for the
 demo — real WhatsApp/Email goes here behind the same `send` contract
 (Twilio WhatsApp / Resend). See `ponytail` markers.
 """
-from .calls import build_script  # noqa: F401  (kept import for script reuse if needed)
+from .domain.enums import CallOutcome, FollowUpChannel, FollowUpKind
 
-POSITIVE_OUTCOMES = {"Meeting / proposal requested"}
-WARM_OUTCOMES = {"Follow-up scheduled"}
+POSITIVE_OUTCOMES = {CallOutcome.MEETING_REQUESTED}
+WARM_OUTCOMES = {CallOutcome.FOLLOW_UP_SCHEDULED}
 
 
 def _signature() -> str:
@@ -22,8 +22,8 @@ def generate_followups(client_name: str, service: str | None, outcome: str) -> l
     if outcome in POSITIVE_OUTCOMES:
         items += [
             {
-                "kind": "thank_you",
-                "channel": "email",
+                "kind": FollowUpKind.THANK_YOU,
+                "channel": FollowUpChannel.EMAIL,
                 "content": (
                     f"Hi {client_name},\n\nThank you for your time today — great "
                     f"conversation about {service}. I've booked a follow-up meeting "
@@ -32,8 +32,8 @@ def generate_followups(client_name: str, service: str | None, outcome: str) -> l
                 ),
             },
             {
-                "kind": "portfolio",
-                "channel": "email",
+                "kind": FollowUpKind.PORTFOLIO,
+                "channel": FollowUpChannel.EMAIL,
                 "content": (
                     f"Hi {client_name},\n\nAs promised, here's a selection of work "
                     f"we've done for businesses like yours around {service}. "
@@ -45,8 +45,8 @@ def generate_followups(client_name: str, service: str | None, outcome: str) -> l
     elif outcome in WARM_OUTCOMES:
         items += [
             {
-                "kind": "follow_up",
-                "channel": "email",
+                "kind": FollowUpKind.FOLLOW_UP,
+                "channel": FollowUpChannel.EMAIL,
                 "content": (
                     f"Hi {client_name},\n\nFollowing up on our call — here's a short "
                     f"summary of where we saw opportunities with {service}. "

@@ -9,6 +9,8 @@ import re
 
 import httpx
 
+from .domain.enums import ResearchStatus
+
 UA = {
     "User-Agent": "Mozilla/5.0 (compatible; AABDM-research/0.1; +http://aabdm.ai)"
 }
@@ -126,7 +128,7 @@ def build_report(url: str, html: str, perf: dict) -> dict:
     missing = missing_features(html)
     return {
         "url": url,
-        "status": "done",
+        "status": ResearchStatus.DONE,
         "seo_score": seo_score,
         "performance_score": perf.get("score"),
         "tech_stack": tech,

@@ -6,6 +6,8 @@ frontend charts need in one response.
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
+from .domain.enums import CallOutcome, CallStatus, ClientStatus, MeetingStatus
+
 
 def _fmt_d(iso: datetime) -> str:
     return iso.strftime("%m-%d")
@@ -16,12 +18,12 @@ def build_analytics(clients: list, calls: list, meetings: list) -> dict:
 
     # ---- KPIs ----
     total_calls = len(calls)
-    done_calls = [c for c in calls if c.status == "done"]
-    positive = [c for c in done_calls if c.outcome == "Meeting / proposal requested"]
+    done_calls = [c for c in calls if c.status == CallStatus.DONE]
+    positive = [c for c in done_calls if c.outcome == CallOutcome.MEETING_REQUESTED]
     conversion = round(len(positive) / len(done_calls) * 100) if done_calls else 0
 
     # revenue estimate: closed deals (none yet) + budget of research-ready clients
-    revenue = sum(c.budget or 0 for c in clients if c.status in ("Proposal", "Closed"))
+    revenue = sum(c.budget or 0 for c in clients if c.status in (ClientStatus.PROPOSAL, ClientStatus.CLOSED))
     avg_budget = (
         round(sum(c.budget or 0 for c in clients if c.budget) / len([c for c in clients if c.budget]))
         if any(c.budget for c in clients)
@@ -29,7 +31,7 @@ def build_analytics(clients: list, calls: list, meetings: list) -> dict:
     )
 
     # lead quality: client status distribution
-    statuses = Counter(c.status or "Lead" for c in clients)
+    statuses = Counter(c.status or ClientStatus.LEAD for c in clients)
     lead_quality = [{"status": s, "count": n} for s, n in statuses.most_common()]
 
     # ---- time series: last 14 days ----
@@ -43,7 +45,7 @@ def build_analytics(clients: list, calls: list, meetings: list) -> dict:
         if created >= days[0] - timedelta(days=1):
             key = _fmt_d(created)
             calls_by_day[key] = calls_by_day.get(key, 0) + 1
-            if c.outcome == "Meeting / proposal requested":
+            if c.outcome == CallOutcome.MEETING_REQUESTED:
                 positive_by_day[key] = positive_by_day.get(key, 0) + 1
 
     calls_series = [
@@ -52,7 +54,7 @@ def build_analytics(clients: list, calls: list, meetings: list) -> dict:
 
     # meeting funnel
     booked = len(meetings)
-    confirmed = len([m for m in meetings if m.status == "confirmed"])
+    confirmed = len([m for m in meetings if m.status == MeetingStatus.CONFIRMED])
 
     return {
         "kpis": {

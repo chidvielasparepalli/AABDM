@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import CurrentUser
 from ..db import get_db
+from ..domain.enums import ResearchStatus
 from ..models import Client, ResearchReport
 from ..research import run_research
 from ..schemas import ResearchReportOut
@@ -33,7 +34,7 @@ def _run_and_save(report_id: int, url: str) -> None:
             for k, v in result.items():
                 setattr(report, k, v)
         except Exception as exc:  # noqa: BLE001 — persist any failure
-            report.status = "error"
+            report.status = ResearchStatus.ERROR
             report.error = str(exc)
         db.commit()
     finally:
