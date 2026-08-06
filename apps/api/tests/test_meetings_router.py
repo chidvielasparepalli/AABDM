@@ -42,7 +42,7 @@ def test_auto_book_meeting_on_positive(client, sample_client):
     from app.routers.calendar import auto_book_meeting
 
     with SessionLocal() as db:
-        meeting = auto_book_meeting(db, sample_client["id"], 1, "Meeting / proposal requested")
+        meeting = auto_book_meeting(db, 1, sample_client["id"], 1, "Meeting / proposal requested")
         assert meeting is not None
         assert meeting.status == "booked"
 
@@ -52,4 +52,4 @@ def test_no_auto_book_on_warm(client, sample_client):
     from app.routers.calendar import auto_book_meeting
 
     with SessionLocal() as db:
-        assert auto_book_meeting(db, sample_client["id"], 1, "Follow-up scheduled") is None
+        assert auto_book_meeting(db, 1, sample_client["id"], 1, "Follow-up scheduled") is None

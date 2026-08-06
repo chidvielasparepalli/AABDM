@@ -5,8 +5,9 @@ from ..auth import CurrentUser
 from ..db import get_db
 from ..domain.enums import MemorySource
 from ..memory import extract_memories
-from ..models import Client, Memory
+from ..repositories import ClientRepository, MemoryRepository
 from ..schemas import MemoryOut
+from ..tenancy import CurrentOrg
 
 router = APIRouter(prefix="/clients/{client_id}/memory", tags=["memory"])
 
@@ -18,34 +19,29 @@ def list_memories(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     _: dict = CurrentUser,
+    org_id: int = CurrentOrg,
 ):
-    client = db.get(Client, client_id)
+    client = ClientRepository(db, org_id).get(client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
-    return (
-        db.query(Memory)
-        .filter(Memory.client_id == client_id)
-        .order_by(Memory.created_at.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    return MemoryRepository(db, org_id).list_for_client(client_id, limit, offset)
 
 
-def extract_from_call(db: Session, call_id: int) -> None:
+def extract_from_call(db: Session, org_id: int, call_id: int) -> None:
     """After a call completes, extract and store new memories."""
-    from ..models import Call
+    from ..repositories import CallRepository
 
-    call = db.get(Call, call_id)
+    call = CallRepository(db, org_id).get(call_id)
     if not call or not call.transcript:
         return
 
+    repo = MemoryRepository(db, org_id)
     existing = {
-        m.value.lower() for m in db.query(Memory).filter(Memory.client_id == call.client_id).all()
+        m.value.lower() for m in repo.all_for_client(call.client_id)
     }
     client_lines = [t.text for t in call.transcript if t.role == "client"]
     ai_lines = [t.text for t in call.transcript if t.role == "ai"]
     facts = extract_memories(existing, client_lines, ai_lines)
     for key, value in facts:
-        db.add(Memory(client_id=call.client_id, key=key, value=value, source=MemorySource.CALL))
+        repo.create_from_call(call.client_id, key, value, MemorySource.CALL)
     db.commit()

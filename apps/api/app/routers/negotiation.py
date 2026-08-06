@@ -3,20 +3,27 @@ from sqlalchemy.orm import Session
 
 from ..auth import CurrentUser
 from ..db import get_db
-from ..models import Client, NegotiationConfig
+from ..repositories import ClientRepository, NegotiationConfigRepository
 from ..schemas import NegotiationConfigOut, NegotiationConfigUpdate
+from ..tenancy import CurrentOrg
 
 router = APIRouter(prefix="/clients/{client_id}/negotiation", tags=["negotiation"])
 
 
 @router.get("", response_model=NegotiationConfigOut)
-def get_config(client_id: int, db: Session = Depends(get_db), _: dict = CurrentUser):
-    client = db.get(Client, client_id)
+def get_config(
+    client_id: int,
+    db: Session = Depends(get_db),
+    _: dict = CurrentUser,
+    org_id: int = CurrentOrg,
+):
+    client = ClientRepository(db, org_id).get(client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
-    config = db.query(NegotiationConfig).filter(NegotiationConfig.client_id == client_id).first()
+    repo = NegotiationConfigRepository(db, org_id)
+    config = repo.for_client(client_id)
     if not config:
-        config = NegotiationConfig(
+        config = repo.add(
             client_id=client_id,
             pricing=[],
             discounts=[],
@@ -24,7 +31,6 @@ def get_config(client_id: int, db: Session = Depends(get_db), _: dict = CurrentU
             payment_terms=[],
             escalation_rules=[],
         )
-        db.add(config)
         db.commit()
         db.refresh(config)
     return config
@@ -36,13 +42,15 @@ def update_config(
     payload: NegotiationConfigUpdate,
     db: Session = Depends(get_db),
     _: dict = CurrentUser,
+    org_id: int = CurrentOrg,
 ):
-    client = db.get(Client, client_id)
+    client = ClientRepository(db, org_id).get(client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
-    config = db.query(NegotiationConfig).filter(NegotiationConfig.client_id == client_id).first()
+    repo = NegotiationConfigRepository(db, org_id)
+    config = repo.for_client(client_id)
     if not config:
-        config = NegotiationConfig(client_id=client_id)
+        config = repo.add(client_id=client_id)
         db.add(config)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(config, field, value)

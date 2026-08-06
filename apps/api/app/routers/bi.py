@@ -5,23 +5,24 @@ from ..auth import CurrentUser
 from ..bi import ClientInfo, Research, build_bi
 from ..db import get_db
 from ..domain.enums import ResearchStatus
-from ..models import Client, ResearchReport
+from ..repositories import ClientRepository, ResearchReportRepository
+from ..tenancy import CurrentOrg
 
 router = APIRouter(prefix="/clients/{client_id}/bi", tags=["bi"])
 
 
 @router.get("")
-def get_bi(client_id: int, db: Session = Depends(get_db), _: dict = CurrentUser):
-    client = db.get(Client, client_id)
+def get_bi(
+    client_id: int,
+    db: Session = Depends(get_db),
+    _: dict = CurrentUser,
+    org_id: int = CurrentOrg,
+):
+    client = ClientRepository(db, org_id).get(client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
 
-    report = (
-        db.query(ResearchReport)
-        .filter(ResearchReport.client_id == client_id)
-        .order_by(ResearchReport.created_at.desc())
-        .first()
-    )
+    report = ResearchReportRepository(db, org_id).latest(client_id)
     if not report or report.status != ResearchStatus.DONE:
         raise HTTPException(status_code=409, detail="No completed research yet")
 

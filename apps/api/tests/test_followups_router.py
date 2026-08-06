@@ -23,7 +23,7 @@ def test_send_followup_mock(client, sample_client):
     from app.routers.followups import create_followups
 
     with SessionLocal() as db:
-        create_followups(db, sample_client["id"], 1, "Meeting / proposal requested", "SEO")
+        create_followups(db, 1, sample_client["id"], 1, "Meeting / proposal requested", "SEO")
 
     r = client.get(f"/clients/{sample_client['id']}/follow-ups")
     assert r.status_code == 200

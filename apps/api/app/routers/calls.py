@@ -6,10 +6,17 @@ from sqlalchemy.orm import Session
 from ..auth import CurrentUser
 from ..bi import ClientInfo, Research, build_bi
 from ..calls import STAGES, replay_call
-from ..db import get_db
-from ..domain.enums import CallStatus, ResearchStatus
-from ..models import Call, Client, NegotiationConfig, ResearchReport, TranscriptLine
+from ..db import SessionLocal, get_db
+from ..domain.enums import CallStatus
+from ..models import Client
+from ..repositories import (
+    CallRepository,
+    ClientRepository,
+    NegotiationConfigRepository,
+    ResearchReportRepository,
+)
 from ..schemas import CallDetail, CallOut
+from ..tenancy import CurrentOrg
 from .calendar import auto_book_meeting
 from .followups import create_followups
 from .learning import review_and_store
@@ -18,28 +25,23 @@ from .memory import extract_from_call
 router = APIRouter(prefix="/clients/{client_id}/calls", tags=["calls"])
 
 
-def _get_client(client_id: int, db: Session) -> Client:
-    client = db.get(Client, client_id)
+def _get_client(db: Session, org_id: int, client_id: int) -> Client:
+    client = ClientRepository(db, org_id).get(client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     return client
 
 
-def _bi_for(db: Session, client_id: int) -> dict:
+def _bi_for(db: Session, org_id: int, client_id: int) -> dict:
     """Latest completed research → BI report, or default when none."""
-    report = (
-        db.query(ResearchReport)
-        .filter(ResearchReport.client_id == client_id, ResearchReport.status == ResearchStatus.DONE)
-        .order_by(ResearchReport.created_at.desc())
-        .first()
-    )
+    report = ResearchReportRepository(db, org_id).latest_done(client_id)
     if not report:
         return {
             "opportunity_score": 50,
             "budget_estimate": {"min": 1000, "max": 4000},
             "recommended_service": None,
         }
-    client = db.get(Client, client_id)
+    client = ClientRepository(db, org_id).get(client_id)
     research = Research(
         seo_score=report.seo_score,
         performance_score=report.performance_score,
@@ -51,8 +53,8 @@ def _bi_for(db: Session, client_id: int) -> dict:
     return build_bi(ClientInfo(client.name, client.industry, client.budget), research)
 
 
-def _negotiation_for(db: Session, client_id: int) -> dict:
-    config = db.query(NegotiationConfig).filter(NegotiationConfig.client_id == client_id).first()
+def _negotiation_for(db: Session, org_id: int, client_id: int) -> dict:
+    config = NegotiationConfigRepository(db, org_id).for_client(client_id)
     if not config:
         return {}
     return {
@@ -64,12 +66,11 @@ def _negotiation_for(db: Session, client_id: int) -> dict:
     }
 
 
-def _replay_and_save(call_id: int, client_name: str, bi: dict, negotiation: dict) -> None:
-    from ..db import SessionLocal
-
+def _replay_and_save(call_id: int, client_id: int, client_name: str, bi: dict, negotiation: dict, org_id: int) -> None:
     db = SessionLocal()
     try:
-        call = db.get(Call, call_id)
+        repo = CallRepository(db, org_id)
+        call = repo.get(call_id)
         if not call:
             return
         call.status = CallStatus.RUNNING
@@ -79,16 +80,14 @@ def _replay_and_save(call_id: int, client_name: str, bi: dict, negotiation: dict
             # fresh session per write: background thread owns it
             nonlocal call
             if call not in db:
-                call = db.get(Call, call_id)
-            db.add(
-                TranscriptLine(
-                    call_id=call_id,
-                    role=line.role,
-                    text=line.text,
-                    stage=line.stage,
-                    emotion=line.emotion,
-                    confidence=line.confidence,
-                )
+                call = repo.get(call_id)
+            repo.add_transcript(
+                call_id,
+                role=line.role,
+                text=line.text,
+                stage=line.stage,
+                emotion=line.emotion,
+                confidence=line.confidence,
             )
             call.stage = line.stage
             db.commit()
@@ -99,10 +98,10 @@ def _replay_and_save(call_id: int, client_name: str, bi: dict, negotiation: dict
         call.duration_s = duration_s
         call.sentiment = sentiment
         db.commit()
-        auto_book_meeting(db, call.client_id, call.id, outcome)
-        create_followups(db, call.client_id, call.id, outcome, bi.get("recommended_service"))
-        extract_from_call(db, call.id)
-        review_and_store(db, call.id)
+        auto_book_meeting(db, org_id, client_id, call.id, outcome)
+        create_followups(db, org_id, client_id, call.id, outcome, bi.get("recommended_service"))
+        extract_from_call(db, org_id, call.id)
+        review_and_store(db, org_id, call.id)
     finally:
         db.close()
 
@@ -113,25 +112,22 @@ def start_call(
     background: BackgroundTasks,
     db: Session = Depends(get_db),
     _: dict = CurrentUser,
+    org_id: int = CurrentOrg,
 ):
-    client = _get_client(client_id, db)
+    client = _get_client(db, org_id, client_id)
 
-    running = (
-        db.query(Call)
-        .filter(Call.client_id == client_id, Call.status == CallStatus.RUNNING)
-        .first()
-    )
+    running = CallRepository(db, org_id).find_running(client_id)
     if running:
         raise HTTPException(status_code=409, detail="A call is already in progress")
 
-    call = Call(client_id=client_id, status=CallStatus.RUNNING, stage=STAGES[0])
-    db.add(call)
+    repo = CallRepository(db, org_id)
+    call = repo.create(client_id=client_id, status=CallStatus.RUNNING, stage=STAGES[0])
     db.commit()
     db.refresh(call)
 
-    bi = _bi_for(db, client_id)
-    negotiation = _negotiation_for(db, client_id)
-    background.add_task(_replay_and_save, call.id, client.name, bi, negotiation)
+    bi = _bi_for(db, org_id, client_id)
+    negotiation = _negotiation_for(db, org_id, client_id)
+    background.add_task(_replay_and_save, call.id, client_id, client.name, bi, negotiation, org_id)
     return call
 
 
@@ -142,22 +138,22 @@ def list_calls(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     _: dict = CurrentUser,
+    org_id: int = CurrentOrg,
 ):
-    _get_client(client_id, db)
-    return (
-        db.query(Call)
-        .filter(Call.client_id == client_id)
-        .order_by(Call.created_at.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    _get_client(db, org_id, client_id)
+    return CallRepository(db, org_id).list_for_client(client_id, limit, offset)
 
 
 @router.get("/{call_id}", response_model=CallDetail)
-def get_call(client_id: int, call_id: int, db: Session = Depends(get_db), _: dict = CurrentUser):
-    _get_client(client_id, db)
-    call = db.get(Call, call_id)
+def get_call(
+    client_id: int,
+    call_id: int,
+    db: Session = Depends(get_db),
+    _: dict = CurrentUser,
+    org_id: int = CurrentOrg,
+):
+    _get_client(db, org_id, client_id)
+    call = CallRepository(db, org_id).get(call_id)
     if not call or call.client_id != client_id:
         raise HTTPException(status_code=404, detail="Call not found")
     return call

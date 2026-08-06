@@ -19,6 +19,7 @@ def test_learning_stats_after_review(client, sample_client):
 
     with SessionLocal() as db:
         call = Call(
+            organization_id=1,
             client_id=sample_client["id"],
             status="done",
             outcome="Meeting / proposal requested",
@@ -26,9 +27,17 @@ def test_learning_stats_after_review(client, sample_client):
         )
         db.add(call)
         db.flush()
-        db.add(TranscriptLine(call_id=call.id, role="client", text="sounds great", stage="Close"))
+        db.add(
+            TranscriptLine(
+                organization_id=1,
+                call_id=call.id,
+                role="client",
+                text="sounds great",
+                stage="Close",
+            )
+        )
         db.commit()
-        review_and_store(db, call.id)
+        review_and_store(db, 1, call.id)
 
     r = client.get("/learning/stats")
     body = r.json()

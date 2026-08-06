@@ -9,6 +9,7 @@ from sqlalchemy import (
     Index,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -26,10 +27,35 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class Organization(Base):
+    __tablename__ = "organizations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class OrganizationMember(Base):
+    """Which Clerk users belong to which organization."""
+
+    __tablename__ = "organization_members"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
+    user_id: Mapped[str] = mapped_column(String(100))  # Clerk sub
+    role: Mapped[str] = mapped_column(String(20), default="member")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("organization_id", "user_id", name="uq_org_member"),
+    )
+
+
 class Client(Base):
     __tablename__ = "clients"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
     name: Mapped[str] = mapped_column(String(200))
     company: Mapped[str | None] = mapped_column(String(200))
     email: Mapped[str | None] = mapped_column(String(200))
@@ -56,6 +82,7 @@ class Call(Base):
     __tablename__ = "calls"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"))
     summary: Mapped[str | None] = mapped_column(Text)
     outcome: Mapped[str | None] = mapped_column(String(100))
@@ -77,6 +104,7 @@ class TranscriptLine(Base):
     __tablename__ = "transcript_lines"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
     call_id: Mapped[int] = mapped_column(ForeignKey("calls.id"))
     role: Mapped[str] = mapped_column(String(10))  # ai | client
     text: Mapped[str] = mapped_column(Text)
@@ -92,6 +120,7 @@ class TimelineEvent(Base):
     __tablename__ = "timeline"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"))
     event: Mapped[str] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -103,6 +132,7 @@ class Document(Base):
     __tablename__ = "documents"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"))
     name: Mapped[str] = mapped_column(String(200))
     kind: Mapped[str | None] = mapped_column(String(50))  # proposal | contract | portfolio
@@ -116,6 +146,7 @@ class LearningEntry(Base):
     __tablename__ = "learning_entries"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
     call_id: Mapped[int] = mapped_column(ForeignKey("calls.id"), unique=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"))
     outcome: Mapped[str | None] = mapped_column(String(100))
@@ -130,6 +161,7 @@ class Memory(Base):
     __tablename__ = "memories"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"))
     key: Mapped[str] = mapped_column(String(50))  # interest | objection | budget | language | preference
     value: Mapped[str] = mapped_column(Text)
@@ -148,6 +180,7 @@ class FollowUp(Base):
     __tablename__ = "follow_ups"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"))
     call_id: Mapped[int | None] = mapped_column(ForeignKey("calls.id"))
     kind: Mapped[str] = mapped_column(String(50))  # thank_you | portfolio | follow_up
@@ -167,6 +200,7 @@ class Meeting(Base):
     __tablename__ = "meetings"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"))
     call_id: Mapped[int | None] = mapped_column(ForeignKey("calls.id"))
     title: Mapped[str] = mapped_column(String(200))
@@ -185,6 +219,7 @@ class NegotiationConfig(Base):
     __tablename__ = "negotiation_configs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"), unique=True)
     pricing: Mapped[list | None] = mapped_column(JSON)  # [{label, amount}]
     discounts: Mapped[list | None] = mapped_column(JSON)  # [{label, percent}]
@@ -200,6 +235,7 @@ class ResearchReport(Base):
     __tablename__ = "research_reports"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"))
     url: Mapped[str] = mapped_column(String(300))
     status: Mapped[str] = mapped_column(String(30), default="running")  # running | done | error
@@ -220,6 +256,7 @@ class Email(Base):
     __tablename__ = "emails"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"))
     subject: Mapped[str] = mapped_column(String(200))
     body: Mapped[str | None] = mapped_column(Text)

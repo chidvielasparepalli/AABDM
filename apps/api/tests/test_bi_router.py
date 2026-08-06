@@ -5,6 +5,7 @@ from app.models import ResearchReport
 def _seed_report(db, client_id, status="done", seo=40, perf=30):
     db.add(
         ResearchReport(
+            organization_id=1,
             client_id=client_id,
             url="https://acme.com",
             status=status,

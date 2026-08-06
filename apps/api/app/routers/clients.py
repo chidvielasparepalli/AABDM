@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
 from ..auth import CurrentUser
 from ..db import get_db
-from ..models import Client, Email, TimelineEvent
+from ..domain.enums import ClientStatus
+from ..models import Client
+from ..repositories import ClientRepository, EmailRepository, TimelineRepository
 from ..schemas import (
     ClientCreate,
     ClientDetail,
@@ -14,12 +16,17 @@ from ..schemas import (
     TimelineCreate,
     TimelineOut,
 )
+from ..tenancy import CurrentOrg
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
 
-def _get_client(client_id: int, db: Session) -> Client:
-    client = db.get(Client, client_id)
+def _client_repo(db: Session, org_id: int) -> ClientRepository:
+    return ClientRepository(db, org_id)
+
+
+def _get_client(db: Session, org_id: int, client_id: int) -> Client:
+    client = _client_repo(db, org_id).get(client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     return client
@@ -31,48 +38,47 @@ def list_clients(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     _: dict = CurrentUser,
+    org_id: int = CurrentOrg,
 ):
-    return (
-        db.query(Client)
-        .order_by(Client.created_at.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    return _client_repo(db, org_id).list(limit, offset)
 
 
 @router.post("", response_model=ClientOut, status_code=201)
-def create_client(payload: ClientCreate, db: Session = Depends(get_db), _: dict = CurrentUser):
-    client = Client(**payload.model_dump())
-    db.add(client)
+def create_client(
+    payload: ClientCreate,
+    db: Session = Depends(get_db),
+    _: dict = CurrentUser,
+    org_id: int = CurrentOrg,
+):
+    data = payload.model_dump()
+    if data.get("status") is None:
+        data["status"] = ClientStatus.LEAD
+    client = _client_repo(db, org_id).add(**data)
     db.commit()
     db.refresh(client)
     return client
 
 
 @router.get("/{client_id}", response_model=ClientDetail)
-def get_client(client_id: int, db: Session = Depends(get_db), _: dict = CurrentUser):
-    client = (
-        db.query(Client)
-        .options(
-            selectinload(Client.calls),
-            selectinload(Client.timeline),
-            selectinload(Client.documents),
-            selectinload(Client.emails),
-        )
-        .filter(Client.id == client_id)
-        .first()
-    )
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
+def get_client(
+    client_id: int,
+    db: Session = Depends(get_db),
+    _: dict = CurrentUser,
+    org_id: int = CurrentOrg,
+):
+    client = _get_client(db, org_id, client_id)
     return client
 
 
 @router.patch("/{client_id}", response_model=ClientOut)
 def update_client(
-    client_id: int, payload: ClientUpdate, db: Session = Depends(get_db), _: dict = CurrentUser
+    client_id: int,
+    payload: ClientUpdate,
+    db: Session = Depends(get_db),
+    _: dict = CurrentUser,
+    org_id: int = CurrentOrg,
 ):
-    client = _get_client(client_id, db)
+    client = _get_client(db, org_id, client_id)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(client, field, value)
     db.commit()
@@ -81,19 +87,28 @@ def update_client(
 
 
 @router.delete("/{client_id}", status_code=204)
-def delete_client(client_id: int, db: Session = Depends(get_db), _: dict = CurrentUser):
-    client = _get_client(client_id, db)
+def delete_client(
+    client_id: int,
+    db: Session = Depends(get_db),
+    _: dict = CurrentUser,
+    org_id: int = CurrentOrg,
+):
+    client = _get_client(db, org_id, client_id)
     db.delete(client)
     db.commit()
 
 
 @router.post("/{client_id}/timeline", response_model=TimelineOut, status_code=201)
 def add_timeline_event(
-    client_id: int, payload: TimelineCreate, db: Session = Depends(get_db), _: dict = CurrentUser
+    client_id: int,
+    payload: TimelineCreate,
+    db: Session = Depends(get_db),
+    _: dict = CurrentUser,
+    org_id: int = CurrentOrg,
 ):
-    _get_client(client_id, db)
-    event = TimelineEvent(client_id=client_id, **payload.model_dump())
-    db.add(event)
+    _get_client(db, org_id, client_id)
+    repo = TimelineRepository(db, org_id)
+    event = repo.add_for_client(client_id, payload.event)
     db.commit()
     db.refresh(event)
     return event
@@ -101,11 +116,15 @@ def add_timeline_event(
 
 @router.post("/{client_id}/emails", response_model=EmailOut, status_code=201)
 def add_email(
-    client_id: int, payload: EmailCreate, db: Session = Depends(get_db), _: dict = CurrentUser
+    client_id: int,
+    payload: EmailCreate,
+    db: Session = Depends(get_db),
+    _: dict = CurrentUser,
+    org_id: int = CurrentOrg,
 ):
-    _get_client(client_id, db)
-    email = Email(client_id=client_id, **payload.model_dump())
-    db.add(email)
+    _get_client(db, org_id, client_id)
+    repo = EmailRepository(db, org_id)
+    email = repo.add_for_client(client_id, **payload.model_dump())
     db.commit()
     db.refresh(email)
     return email
