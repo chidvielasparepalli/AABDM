@@ -24,3 +24,18 @@ def test_research_start_runs_background(client):
         r = client.post(f"/clients/{c['id']}/research")
         assert r.status_code == 201
         research_router._run_and_save.assert_called_once()
+
+
+def test_research_ssrf_url_rejected_400(client):
+    c = client.post(
+        "/clients", json={"name": "Metadata Co", "website": "http://169.254.169.254/latest/meta-data/"}
+    ).json()
+    r = client.post(f"/clients/{c['id']}/research")
+    assert r.status_code == 400
+    assert "not allowed" in r.text or "non-public" in r.text
+
+
+def test_research_private_hostname_rejected_400(client):
+    c = client.post("/clients", json={"name": "Local Co", "website": "http://localhost/admin"}).json()
+    r = client.post(f"/clients/{c['id']}/research")
+    assert r.status_code == 400

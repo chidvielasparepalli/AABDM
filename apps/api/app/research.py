@@ -10,6 +10,7 @@ import re
 import httpx
 
 from .domain.enums import ResearchStatus
+from .security.ssrf import max_redirects, validate_url
 
 UA = {
     "User-Agent": "Mozilla/5.0 (compatible; AABDM-research/0.1; +http://aabdm.ai)"
@@ -52,15 +53,17 @@ def _has(html: str, patterns: list[str]) -> bool:
 
 
 async def fetch_site(url: str) -> str:
-    target = url if url.startswith("http") else f"https://{url}"
-    async with httpx.AsyncClient(headers=UA, follow_redirects=True, timeout=15) as c:
+    target = validate_url(url)
+    async with httpx.AsyncClient(
+        headers=UA, follow_redirects=True, timeout=15, max_redirects=max_redirects()
+    ) as c:
         r = await c.get(target)
         r.raise_for_status()
         return r.text
 
 
 async def page_speed(url: str) -> dict:
-    target = url if url.startswith("http") else f"https://{url}"
+    target = validate_url(url)
     api = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
     params = {"url": target, "category": "performance"}
     async with httpx.AsyncClient(timeout=30) as c:

@@ -9,6 +9,8 @@ from ..domain.enums import ResearchStatus
 from ..models import Client, ResearchReport
 from ..research import run_research
 from ..schemas import ResearchReportOut
+from ..security.errors import SSrfBlocked
+from ..security.ssrf import validate_url
 
 router = APIRouter(prefix="/clients/{client_id}/research", tags=["research"])
 
@@ -52,6 +54,13 @@ def start_research(
     url = client.website
     if not url:
         raise HTTPException(status_code=400, detail="Client has no website set")
+
+    # Fail fast before spawning a background job: blocked URLs → 400,
+    # not a 500 half-way through research.
+    try:
+        validate_url(url)
+    except SSrfBlocked as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     report = ResearchReport(client_id=client_id, url=url)
     db.add(report)
