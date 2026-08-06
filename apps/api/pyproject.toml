@@ -1,0 +1,8 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
+# Depends(...) in defaults is idiomatic FastAPI dependency injection
+ignore = ["B008"]

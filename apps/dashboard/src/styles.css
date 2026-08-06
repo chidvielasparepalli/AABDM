@@ -1,0 +1,154 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-base text-ink font-body antialiased;
+    background:
+      radial-gradient(1200px 800px at 15% -10%, rgba(139, 124, 246, 0.14), transparent 60%),
+      radial-gradient(1000px 700px at 90% 110%, rgba(94, 234, 212, 0.10), transparent 55%),
+      radial-gradient(800px 600px at 70% 20%, rgba(245, 201, 123, 0.05), transparent 50%);
+    background-color: #0a0d16;
+    background-attachment: fixed;
+  }
+
+  ::selection {
+    @apply bg-aurora-violet/40 text-white;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-aurora-violet;
+  }
+
+  /* custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    border: 2px solid #0a0d16;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.22);
+  }
+}
+
+@layer components {
+  /* frosted panel — the core liquid glass surface */
+  .glass {
+    @apply relative rounded-2xl border border-glass-line bg-white/[0.04];
+    backdrop-filter: blur(24px) saturate(140%);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.09),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.03),
+      0 8px 32px rgba(0, 0, 0, 0.35);
+  }
+
+  /* refracted top sheen — light catching the pane edge */
+  .glass::before {
+    content: "";
+    @apply pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-2xl;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.28),
+      transparent
+    );
+  }
+
+  .glass-hover {
+    transition:
+      transform 0.15s ease,
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+  .glass-hover:hover {
+    @apply border-white/20;
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 12px 40px rgba(0, 0, 0, 0.45),
+      0 0 40px rgba(139, 124, 246, 0.12);
+  }
+
+  /* ambient orb — living gradient sphere behind content */
+  .orb {
+    @apply pointer-events-none absolute rounded-full blur-[90px] will-change-transform;
+    opacity: 0.55;
+  }
+  .orb-violet {
+    background: radial-gradient(circle, rgba(139, 124, 246, 0.5), transparent 70%);
+    animation: orb-drift 18s ease-in-out infinite;
+  }
+  .orb-cyan {
+    background: radial-gradient(circle, rgba(94, 234, 212, 0.4), transparent 70%);
+    animation: orb-drift 22s ease-in-out infinite reverse;
+  }
+  .orb-amber {
+    background: radial-gradient(circle, rgba(245, 201, 123, 0.35), transparent 70%);
+    animation: orb-drift 26s ease-in-out infinite;
+  }
+
+  .grain::after {
+    content: "";
+    @apply pointer-events-none absolute inset-0 rounded-2xl opacity-[0.04];
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 180px;
+  }
+
+  .glass-input {
+    @apply w-full rounded-xl border border-glass-line bg-black/20 px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-aurora-violet/60 focus:outline-none;
+    transition: border-color 0.15s ease;
+  }
+
+  .glass-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .glass-btn-primary {
+    @apply glass-btn bg-aurora-violet/90 text-white hover:bg-aurora-violet hover:shadow-glow;
+  }
+  .glass-btn-ghost {
+    @apply glass-btn border border-glass-line bg-white/[0.05] text-ink hover:bg-white/[0.10];
+  }
+  .glass-btn-danger {
+    @apply glass-btn border border-red-400/30 bg-red-500/10 text-red-300 hover:bg-red-500/20;
+  }
+
+  .glass-badge {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint;
+  }
+
+  .page-title {
+    @apply font-display text-2xl font-semibold tracking-tight text-white;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb {
+    animation: none;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}

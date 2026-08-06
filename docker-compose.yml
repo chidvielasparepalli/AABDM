@@ -1,0 +1,32 @@
+services:
+  api:
+    build:
+      context: ./apps/api
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./apps/api/.env
+    environment:
+      - DATABASE_URL=postgresql+psycopg://aabdm:aabdm@db:5432/aabdm
+      - AUTO_MIGRATE=true
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=aabdm
+      - POSTGRES_PASSWORD=aabdm
+      - POSTGRES_DB=aabdm
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aabdm"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata:
