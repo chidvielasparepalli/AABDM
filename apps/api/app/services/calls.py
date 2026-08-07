@@ -1,8 +1,8 @@
-"""CallService — call lifecycle + the post-call saga.
+"""CallService — call lifecycle + event publishing.
 
 The saga (replay → book meeting → follow-ups → memories → learning review)
-previously lived in the calls router; it now runs here as the orchestration
-boundary where workflows/agents will plug in later.
+now runs as independent event subscribers. CallService only owns the
+conversation replay and emits the call.completed fact.
 """
 
 import asyncio
@@ -13,6 +13,8 @@ from ..bi import ClientInfo, Research, build_bi
 from ..calls import STAGES, replay_call
 from ..db import SessionLocal
 from ..domain.enums import CallStatus
+from ..events.bus import bus
+from ..events.schema import EventType, make_event
 from ..repositories import (
     CallRepository,
     ClientRepository,
@@ -20,10 +22,6 @@ from ..repositories import (
     ResearchReportRepository,
 )
 from .base import Service
-from .followups import FollowUpService
-from .learning import LearningService
-from .meetings import MeetingService
-from .memory import MemoryService
 
 
 class CallService(Service):
@@ -108,7 +106,13 @@ class CallService(Service):
     def replay_and_save(
         call_id: int, client_id: int, client_name: str, bi: dict, negotiation: dict, org_id: int
     ) -> None:
-        """Background saga: replay the call, then the outcome chain. Own session (thread)."""
+        """Background: replay the call, then emit call.completed event. Own session (thread)."""
+        from ..db import SessionLocal
+        from ..events.bus import bus
+        from ..events.schema import EventType, make_event
+        from ..repositories import CallRepository
+        from ..calls import STAGES, replay_call
+
         db = SessionLocal()
         try:
             calls = CallRepository(db, org_id)
@@ -119,7 +123,6 @@ class CallService(Service):
             db.commit()
 
             async def write(line) -> None:
-                # fresh session per write: background thread owns it
                 nonlocal call
                 if call not in db:
                     call = calls.get(call_id)
@@ -140,11 +143,22 @@ class CallService(Service):
             call.duration_s = duration_s
             call.sentiment = sentiment
             db.commit()
-            MeetingService(db, org_id).book_from_outcome(client_id, call.id, outcome)
-            FollowUpService(db, org_id).create_from_outcome(
-                client_id, call.id, outcome, bi.get("recommended_service")
+
+            # Emit call.completed event — the saga is now event-driven
+            event = make_event(
+                event_type=EventType.CALL_COMPLETED,
+                aggregate="call",
+                aggregate_id=call_id,
+                payload={
+                    "client_id": client_id,
+                    "call_id": call_id,
+                    "outcome": outcome,
+                    "sentiment": sentiment,
+                    "duration_s": duration_s,
+                    "recommended_service": bi.get("recommended_service"),
+                },
+                org_id=org_id,
             )
-            MemoryService(db, org_id).extract_from_call(call.id)
-            LearningService(db, org_id).review_and_store(call.id)
+            asyncio.run(bus.publish(event))
         finally:
             db.close()

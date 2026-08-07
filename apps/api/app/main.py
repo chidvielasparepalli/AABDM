@@ -38,6 +38,9 @@ def run_migrations() -> None:
 async def lifespan(app: FastAPI):
     if settings.auto_migrate:
         run_migrations()
+    # Register event handlers (subscriptions) at startup
+    from .events.handlers import register_handlers
+    register_handlers()
     yield
 
 
