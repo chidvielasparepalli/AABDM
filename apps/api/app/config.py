@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     api_version: str = "0.1.0"
     api_title: str = "AABDM API"
 
+    # OpenAI
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
+    openai_embedding_model: str = "text-embedding-3-small"
+
     # Run alembic upgrade head on startup (disable in tests)
     auto_migrate: bool = True
 
