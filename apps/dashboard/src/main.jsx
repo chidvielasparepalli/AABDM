@@ -20,10 +20,14 @@ const AuthProvider = MOCK ? MockClerkProvider : ClerkProvider;
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <AuthProvider publishableKey={PUBLISHABLE_KEY}>
-      <BrowserRouter>
+    <BrowserRouter>
+      <AuthProvider
+        publishableKey={PUBLISHABLE_KEY}
+        signInUrl={import.meta.env.VITE_CLERK_SIGN_IN_URL}
+        signUpUrl={import.meta.env.VITE_CLERK_SIGN_UP_URL}
+      >
         <App />
-      </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </BrowserRouter>
   </React.StrictMode>
 );

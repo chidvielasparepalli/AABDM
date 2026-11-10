@@ -23,7 +23,7 @@ export default function Meetings() {
     api
       .get(`/meetings?upcoming_only=${upcomingOnly}`)
       .then(setMeetings)
-      .catch(setError);
+      .catch((ex) => setError(ex.message || "Failed to load meetings."));
 
   useEffect(() => {
     load();

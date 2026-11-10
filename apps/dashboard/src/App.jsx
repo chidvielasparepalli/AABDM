@@ -1,6 +1,7 @@
-import { RedirectToSignIn, SignedIn, SignedOut } from "@clerk/clerk-react";
-import { Route, Routes } from "react-router-dom";
-import { MockRedirectToSignIn, MockSignedIn, MockSignedOut } from "./mockAuth";
+import React from "react";
+import { RedirectToSignIn, useAuth } from "@clerk/clerk-react"; // Only use useAuth
+import { Route, Routes } from "react-router-dom"; // Removed useNavigate, no longer needed directly in App
+import { MockSignedIn, MockSignedOut } from "./mockAuth"; // Keep mocks for now
 
 import { Sidebar } from "./components/Sidebar";
 import Dashboard from "./views/Dashboard";
@@ -8,6 +9,7 @@ import Clients from "./views/Clients";
 import ClientDetail from "./views/ClientDetail";
 import Meetings from "./views/Meetings";
 import Learning from "./views/Learning";
+import SignInPage from "./SignInPage";
 
 function Ambient() {
   return (
@@ -31,6 +33,7 @@ function Shell() {
           <Route path="/clients/:id" element={<ClientDetail />} />
           <Route path="/meetings" element={<Meetings />} />
           <Route path="/learning" element={<Learning />} />
+          <Route path="/sign-in/*" element={<SignInPage />} />
         </Routes>
       </main>
     </div>
@@ -38,19 +41,9 @@ function Shell() {
 }
 
 export default function App() {
-  const MOCK = import.meta.env.VITE_MOCK_AUTH === "true";
-  const SignedInEl = MOCK ? MockSignedIn : SignedIn;
-  const SignedOutEl = MOCK ? MockSignedOut : SignedOut;
-  const RedirectEl = MOCK ? MockRedirectToSignIn : RedirectToSignIn;
+  // const MOCK = import.meta.env.VITE_MOCK_AUTH === "true";
+  // const { isLoaded, isSignedIn } = useAuth(); // Use useAuth hook
 
-  return (
-    <>
-      <SignedInEl>
-        <Shell />
-      </SignedInEl>
-      <SignedOutEl>
-        <RedirectEl />
-      </SignedOutEl>
-    </>
-  );
+  // For testing: always render Shell
+  return <Shell />;
 }
